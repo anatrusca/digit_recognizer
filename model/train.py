@@ -4,6 +4,8 @@ from sklearn.model_selection import KFold
 from keras.callbacks import EarlyStopping
 import numpy as np
 import os
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
@@ -36,7 +38,10 @@ def analyse_fit(
 
     return verdict
 
-def cross_validate_model(save_final_model_to="saved_model/digit_model.h5", folds=5, epochs=20):
+
+def cross_validate_model(
+    save_final_model_to="saved_model/digit_model.h5", folds=5, epochs=20
+):
     x_train, x_test, y_train, y_test = load_data_from_csv()
     kf = KFold(n_splits=folds, shuffle=True, random_state=42)
 
@@ -75,8 +80,6 @@ def cross_validate_model(save_final_model_to="saved_model/digit_model.h5", folds
         )
         print(verdict)
 
-        
-
     print("\n Cross-validation results:")
     print("Accuracies per fold:", fold_accuracies)
     print(f"Mean accuracy: {np.mean(fold_accuracies):.4f}")
@@ -97,10 +100,37 @@ def cross_validate_model(save_final_model_to="saved_model/digit_model.h5", folds
         callbacks=[early_stop_final]
     )
 
+    DIGITS = [str(i) for i in range(10)]
+    os.makedirs("plots", exist_ok=True)
+
+    y_pred = final_model.predict(x_test)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    y_true = np.argmax(y_test, axis=1)
+
+    cm = confusion_matrix(y_true, y_pred_classes)
+    fig, ax = plt.subplots(figsize=(6, 6))
+    im = ax.imshow(cm, cmap="Blues")
+    ax.set_xticks(range(len(DIGITS)))
+    ax.set_xticklabels(DIGITS, rotation=45, ha="right")
+    ax.set_yticks(range(len(DIGITS)))
+    ax.set_yticklabels(DIGITS)
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("True")
+    ax.set_title("Confusion Matrix")
+
+    for i in range(len(DIGITS)):
+        for j in range(len(DIGITS)):
+            ax.text(j, i, cm[i, j], ha="center", va="center", color="black")
+
+    plt.colorbar(im, ax=ax)
+    plt.tight_layout()
+    plt.savefig(os.path.join("plots", "confusion_matrix.png"))
+    plt.close()
 
     os.makedirs(os.path.dirname(save_final_model_to), exist_ok=True)
     final_model.save(save_final_model_to)
     print(f" Final model saved to {save_final_model_to}")
+
 
 if __name__ == "__main__":
     cross_validate_model()

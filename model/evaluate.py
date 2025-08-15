@@ -12,5 +12,6 @@ def evaluate_model(model_path="saved_model/digit_model.h5"):
     print(f"Test Loss: {loss:.4f}, Accuracy: {acc:.4f}")
     return loss, acc
 
+
 if __name__ == "__main__":
     evaluate_model()

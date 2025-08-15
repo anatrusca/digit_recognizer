@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image
 
+
 def preprocess_image(img_array):
     img = Image.fromarray(img_array).convert("L").resize((28, 28))
     img_np = np.array(img)

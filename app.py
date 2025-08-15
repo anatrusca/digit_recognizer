@@ -3,28 +3,23 @@ from streamlit_drawable_canvas import st_canvas
 import numpy as np
 import cv2
 from keras.models import load_model
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Digit Recognizer", layout="centered")
 st.title("🖌️ Handwritten Digit Recognizer")
 
-model = load_model("saved_model/digit_model.h5")
-st.write("Model loaded.")
 
-def preprocess_image(img):
-    img = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
-    img = cv2.resize(img, (28, 28))
-    img = cv2.bitwise_not(img)
-    img = img.astype("float32") / 255.0
-    img = img.reshape(1, 28, 28, 1)
+@st.cache_resource
+def load_digit_model():
+    return load_model("saved_model/digit_model.h5")
 
-    return img
 
+model = load_digit_model()
 canvas_result = st_canvas(
-    fill_color="black",   
-    stroke_width=20,
-    stroke_color="white",
-    background_color="black",
-    update_streamlit=True,
+    fill_color="white",
+    stroke_width=10,
+    stroke_color="black",
+    background_color="white",
     height=280,
     width=280,
     drawing_mode="freedraw",
@@ -32,21 +27,45 @@ canvas_result = st_canvas(
 )
 
 
-if canvas_result.image_data is not None:
+def preprocess_image(img: np.ndarray) -> np.ndarray:
+    if img is None:
+        return None
+    # Convert to grayscale
+    if img.shape[-1] == 4:
+        img = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
+    elif img.shape[-1] == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # Resize to 28x28
+    img = cv2.resize(img, (28, 28), interpolation=cv2.INTER_AREA)
+    # Invert if white background
+    if np.mean(img) > 127:
+        img = cv2.bitwise_not(img)
+    # Normalize and reshape
+    img = img.astype("float32") / 255.0
+    img = img.reshape(1, 28, 28, 1)
+    return img
 
-    st.image(canvas_result.image_data, caption="🖼️ Your drawing", width=150)
 
-    if st.button("🧠 Predict"):
-        img = canvas_result.image_data.astype(np.uint8)
-        processed = preprocess_image(img)
+if st.button("🔍 Predict"):
+    if canvas_result.image_data is not None:
+        processed_img = preprocess_image(
+            canvas_result.image_data.astype(np.uint8)
+        )
+        if processed_img is not None:
+            prediction = model.predict(processed_img)
+            predicted_digit = int(np.argmax(prediction))
+            confidence = float(np.max(prediction)) * 100
 
-        # Show processed image
-        st.image(processed.reshape(28, 28), caption="🔍 Processed Image", width=150)
-
-        # Prediction
-        prediction = model.predict(processed)
-        pred_class = np.argmax(prediction)
-        confidence = np.max(prediction) * 100
-
-        st.write(f"### 🎯 Prediction: **{pred_class}**")
-        st.write(f"Confidence: `{confidence:.2f}%`")
+            st.success(f"✅ Predicted Digit: **{predicted_digit}**")
+            st.info(f"🔢 Confidence: **{confidence:.2f}%**")
+            st.write("🔍 Full Prediction Probabilities:")
+            fig, ax = plt.subplots()
+            ax.bar(range(10), prediction[0])
+            ax.set_xticks(range(10))
+            ax.set_xlabel("Digit")
+            ax.set_ylabel("Probability")
+            st.pyplot(fig)
+        else:
+            st.warning("Could not preprocess the input image.")
+    else:
+        st.warning("Please draw a digit on the canvas before predicting.")
